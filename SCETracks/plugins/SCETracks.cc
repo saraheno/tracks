@@ -81,6 +81,9 @@ SCETracks::SCETracks(const edm::ParameterSet& iConfig)
    //now do what ever initialization is needed
    usesResource("TFileService");
 
+   indexEvent = 0;
+   generalTracksToken_ = consumes<edm::View<reco::Track> >(edm::InputTag("generalTracks"));
+
 }
 
 
@@ -105,15 +108,15 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 
 
-#ifdef THIS_IS_AN_EVENT_EXAMPLE
-   Handle<ExampleData> pIn;
-   iEvent.getByLabel("example",pIn);
-#endif
+   //#ifdef THIS_IS_AN_EVENT_EXAMPLE
+   //   Handle<ExampleData> pIn;
+   //   iEvent.getByLabel("example",pIn);
+   //#endif
    
-#ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
-   ESHandle<SetupData> pSetup;
-   iSetup.get<SetupRecord>().get(pSetup);
-#endif
+   //#ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
+   //   ESHandle<SetupData> pSetup;
+   //   iSetup.get<SetupRecord>().get(pSetup);
+   //#endif
 
    std::cout<<"Event "<< indexEvent<< std::endl;
 
