@@ -131,13 +131,16 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 
    // genparticles
+
+   //  edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
+   //   genParticlesToken_ = consumes<reco::GenParticleCollection>(edm::InputTag("genParticles"));
    
-   Handle<edm::View<reco::GenParticle> > GenParticleHandle_;
+   Handle<reco::GenParticleCollection > GenParticleHandle_;
    iEvent.getByToken(genParticlesToken_,GenParticleHandle_);
 
    for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
           const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
-          std::cout << "    GenParticle " << j << genparticle.isHardProcess()
+          std::cout << "    GenParticle " << j << " "<<genparticle.pt()
                <<  std::endl;
    }
    
