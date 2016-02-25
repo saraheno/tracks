@@ -118,6 +118,9 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
    std::cout<<"Event "<< indexEvent<< std::endl;
 
+   // printing header
+   std::cout<<" pT phi eta"<<std::endl;
+
 
    // tracks
    Handle<edm::View<reco::Track> > trackHandle_;
@@ -125,23 +128,47 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
    for (int j = 0 ; j < (int)trackHandle_->size(); j++){
      const reco::Track& track = trackHandle_->at(j);
-     std::cout << "    Track " << j << " " << track.charge()*track.pt() << " " << track.phi()
+     std::cout << "    Track " << j << " " << track.pt() << " " << track.phi()
                << " " << track.eta() << " " << track.dxy() << " " << track.dz() <<std::endl;
    }
 
 
    // genparticles
 
-   //  edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
-   //   genParticlesToken_ = consumes<reco::GenParticleCollection>(edm::InputTag("genParticles"));
    
    Handle<reco::GenParticleCollection > GenParticleHandle_;
    iEvent.getByToken(genParticlesToken_,GenParticleHandle_);
 
    for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
           const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
-          std::cout << "    GenParticle " << j << " "<<genparticle.pt()
+          std::cout << "    GenParticle " << j << " "<<genparticle.pdgId()<<" "<<genparticle.pt()<<" "<<genparticle.phi()<<
+	    " "<<genparticle.eta()<<" "<<genparticle.vx()<<" "<<genparticle.vy()<<" "<<
+	    sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2))<<" "<<genparticle.vz()
                <<  std::endl;
+   }
+
+
+   // for each generator particle, fine the nearest track
+   std::vector<int> pttrk(trackHandle_->size());
+   for (int i = 0 ; i < (int)trackHandle_->size(); i++){
+     const reco::Track& track = trackHandle_->at(i);
+     //     std::cout<<" track "<<i<<std::endl;
+     pttrk[i]=0;
+     float delR=99999.;
+     for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
+       //       std::cout<<" particle "<<j<<std::endl;
+       const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
+       float delphi = (track.phi()-genparticle.phi());
+       if(delphi>3.14159) delphi=2.*3.14159-delphi;
+       float deleta = (track.eta()-genparticle.eta());
+       float DR = sqrt(pow(delphi,2)+pow(deleta,2));
+       //       std::cout<<"DR is "<<DR<<std::endl;
+       if(DR<delR) {
+	 delR=DR;
+	 pttrk[i]=j;
+       }
+     }
+     std::cout<<" track "<<i<<" matches with genparticle "<<pttrk[i]<<" with delR of "<<delR<<std::endl;
    }
    
 
