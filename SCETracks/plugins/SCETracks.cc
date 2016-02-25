@@ -1,3 +1,5 @@
+
+
 // -*- C++ -*-
 //
 // Package:    tracks/SCETracks
@@ -28,11 +30,16 @@
 #include "FWCore/Framework/interface/MakerMacros.h"
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/Utilities/interface/InputTag.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
 
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
+#include "DataFormats/Candidate/interface/Candidate.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticleFwd.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 
 //
 // class declaration
@@ -61,6 +68,8 @@ class SCETracks : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
 
   int indexEvent;
   edm::EDGetTokenT<edm::View<reco::Track> > generalTracksToken_;
+  //  edm::EDGetTokenT<edm::View<reco::GenParticle> genParticlesToken_;
+  edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
 
 };
 
@@ -83,6 +92,7 @@ SCETracks::SCETracks(const edm::ParameterSet& iConfig)
 
    indexEvent = 0;
    generalTracksToken_ = consumes<edm::View<reco::Track> >(edm::InputTag("generalTracks"));
+   genParticlesToken_ = consumes<reco::GenParticleCollection>(edm::InputTag("genParticles"));
 
 }
 
@@ -106,28 +116,33 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
    using namespace edm;
 
-
-
-   //#ifdef THIS_IS_AN_EVENT_EXAMPLE
-   //   Handle<ExampleData> pIn;
-   //   iEvent.getByLabel("example",pIn);
-   //#endif
-   
-   //#ifdef THIS_IS_AN_EVENTSETUP_EXAMPLE
-   //   ESHandle<SetupData> pSetup;
-   //   iSetup.get<SetupRecord>().get(pSetup);
-   //#endif
-
    std::cout<<"Event "<< indexEvent<< std::endl;
 
+
+   // tracks
    Handle<edm::View<reco::Track> > trackHandle_;
    iEvent.getByToken(generalTracksToken_,trackHandle_);
 
    for (int j = 0 ; j < (int)trackHandle_->size(); j++){
      const reco::Track& track = trackHandle_->at(j);
      std::cout << "    Track " << j << " " << track.charge()*track.pt() << " " << track.phi()
-               << " " << track.eta() << " " << track.dxy() << " " << track.dz() << std::endl;
+               << " " << track.eta() << " " << track.dxy() << " " << track.dz() <<std::endl;
    }
+
+
+   // genparticles
+   
+   Handle<edm::View<reco::GenParticle> > GenParticleHandle_;
+   iEvent.getByToken(genParticlesToken_,GenParticleHandle_);
+
+   for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
+          const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
+          std::cout << "    GenParticle " << j << genparticle.isHardProcess()
+               <<  std::endl;
+   }
+   
+
+   // next event
    indexEvent++;
 
 
