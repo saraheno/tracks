@@ -75,7 +75,10 @@ class SCETracks : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
   edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
 
   edm::Service<TFileService> fs;
-  TH1F *h1;
+  TH1F *hntrk;
+  TH1F *hnchst;
+
+  const int idbg = 1;
 
 };
 
@@ -122,10 +125,10 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
    using namespace edm;
 
-   std::cout<<"Event "<< indexEvent<< std::endl;
+   if(idbg>0) std::cout<<"Event "<< indexEvent<< std::endl;
 
    // printing header
-   std::cout<<" pT phi eta"<<std::endl;
+   if(idbg>0) std::cout<<" pT phi eta"<<std::endl;
 
 
    // tracks
@@ -133,10 +136,10 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    iEvent.getByToken(generalTracksToken_,trackHandle_);
 
 
-   h1->Fill((int)trackHandle_->size());
+   hntrk->Fill((int)trackHandle_->size());
    for (int j = 0 ; j < (int)trackHandle_->size(); j++){
      const reco::Track& track = trackHandle_->at(j);
-     std::cout << "    Track " << j << " " << track.pt() << " " << track.phi()
+     if(idbg>0) std::cout << "    Track " << j << " " << track.pt() << " " << track.phi()
                << " " << track.eta() << " " << track.dxy() << " " << track.dz() <<std::endl;
    }
 
@@ -147,13 +150,22 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    Handle<reco::GenParticleCollection > GenParticleHandle_;
    iEvent.getByToken(genParticlesToken_,GenParticleHandle_);
 
+   int nchst=0; // count numbe of charged stable particles
    for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
-          const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
-          std::cout << "    GenParticle " << j << " "<<genparticle.pdgId()<<" "<<genparticle.pt()<<" "<<genparticle.phi()<<
+     const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
+     if(idbg>0) std::cout << "    GenParticle " << j << " "<<genparticle.pdgId()<<" "<<genparticle.pt()<<" "<<
+            genparticle.phi()<<
 	    " "<<genparticle.eta()<<" "<<genparticle.vx()<<" "<<genparticle.vy()<<" "<<
 	    sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2))<<" "<<genparticle.vz()
-               <<  std::endl;
+            <<  std::endl;
+     if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
+       if(genparticle.charge()!=0) {
+	 nchst+=1;
+       }
+     }
    }
+   hnchst->Fill(nchst);
+   if(idbg>0) std::cout<<" nmber of stable charged is "<<nchst<<std::endl;
 
 
    // for each generator particle, fine the nearest track
@@ -179,7 +191,7 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 }  // end zero daughters
        }  //end final state
      } //end loop over gen particles
-     std::cout<<" track "<<i<<" matches with genparticle "<<pttrk[i]<<" with delR of "<<delR<<std::endl;
+     if(idbg>0) std::cout<<" track "<<i<<" matches with genparticle "<<pttrk[i]<<" with delR of "<<delR<<std::endl;
    }
    
 
@@ -194,7 +206,8 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 void 
 SCETracks::beginJob()
 {
-  h1 = fs->make<TH1F>("h1" , "snumber of tracks", 100, 0, 100.);
+  hntrk = fs->make<TH1F>("hntrk" , "snumber of tracks", 100, 0, 100.);
+  hnchst = fs->make<TH1F>("hnchst" , "snumber of gen stable charged tracks", 20, 0, 20.);
 }
 
 // ------------ method called once each job just after ending the event loop  ------------
