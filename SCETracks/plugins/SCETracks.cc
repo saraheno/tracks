@@ -1,5 +1,3 @@
-
-
 // -*- C++ -*-
 //
 // Package:    tracks/SCETracks
@@ -32,6 +30,11 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
+
+
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+
 
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
@@ -70,6 +73,9 @@ class SCETracks : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
   edm::EDGetTokenT<edm::View<reco::Track> > generalTracksToken_;
   //  edm::EDGetTokenT<edm::View<reco::GenParticle> genParticlesToken_;
   edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
+
+  edm::Service<TFileService> fs;
+  TH1F *h1;
 
 };
 
@@ -126,6 +132,8 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    Handle<edm::View<reco::Track> > trackHandle_;
    iEvent.getByToken(generalTracksToken_,trackHandle_);
 
+
+   h1->Fill((int)trackHandle_->size());
    for (int j = 0 ; j < (int)trackHandle_->size(); j++){
      const reco::Track& track = trackHandle_->at(j);
      std::cout << "    Track " << j << " " << track.pt() << " " << track.phi()
@@ -186,6 +194,7 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 void 
 SCETracks::beginJob()
 {
+  h1 = fs->make<TH1F>("h1" , "snumber of tracks", 100, 0, 100.);
 }
 
 // ------------ method called once each job just after ending the event loop  ------------
