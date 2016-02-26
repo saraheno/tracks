@@ -158,16 +158,19 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
        //       std::cout<<" particle "<<j<<std::endl;
        const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
-       float delphi = (track.phi()-genparticle.phi());
-       if(delphi>3.14159) delphi=2.*3.14159-delphi;
-       float deleta = (track.eta()-genparticle.eta());
-       float DR = sqrt(pow(delphi,2)+pow(deleta,2));
-       //       std::cout<<"DR is "<<DR<<std::endl;
-       if(DR<delR) {
-	 delR=DR;
-	 pttrk[i]=j;
-       }
-     }
+       if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
+	 if(genparticle.charge()!=0) {
+           float delphi = (track.phi()-genparticle.phi());
+           if(delphi>3.14159) delphi=2.*3.14159-delphi;
+           float deleta = (track.eta()-genparticle.eta());
+           float DR = sqrt(pow(delphi,2)+pow(deleta,2));
+           if(DR<delR) {
+  	     delR=DR;
+  	     pttrk[i]=j;
+           }  // end dR test
+	 }  // end zero daughters
+       }  //end final state
+     } //end loop over gen particles
      std::cout<<" track "<<i<<" matches with genparticle "<<pttrk[i]<<" with delR of "<<delR<<std::endl;
    }
    
