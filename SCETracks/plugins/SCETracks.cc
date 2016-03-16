@@ -88,11 +88,11 @@ class SCETracks : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
   edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
 
   edm::Service<TFileService> fs;
-  TH1F *hntrk;
-  TH1F *hnchst;
-  TH2D *hgenrecopt;
+  TH1F *hntrk,*hnchst,*hrgen,*hrgen2,*hrreco,*hdR,*hgenreco;
+  TH2D *hgenrecopt,*hratvr;
 
-  const int idbg = 1;
+
+  const int idbg = 10;
 
 };
 
@@ -142,7 +142,7 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    if(idbg>0) std::cout<<"Event "<< indexEvent<< std::endl;
 
    // printing header
-   if(idbg>0) std::cout<<" pT phi eta"<<std::endl;
+   if(idbg>0) std::cout<<" pT phi eta dxy  dz"<<std::endl;
 
 
    // tracks
@@ -167,13 +167,16 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    int nchst=0; // count numbe of charged stable particles
    for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
      const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
-     if(idbg>0) std::cout << "    GenParticle " << j << " "<<genparticle.pdgId()<<" "<<genparticle.pt()<<" "<<
-            genparticle.phi()<<
-	    " "<<genparticle.eta()<<" "<<genparticle.vx()<<" "<<genparticle.vy()<<" "<<
-	    sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2))<<" "<<genparticle.vz()
-            <<  std::endl;
+     float rgen =sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2)); 
      if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
        if(genparticle.charge()!=0) {
+         hrgen->Fill(rgen);
+         hrgen2->Fill(rgen);
+         if(idbg>0) std::cout << "    GenParticle " << j << " "<<genparticle.pdgId()<<" "<<genparticle.pt()<<" "<<
+            genparticle.phi()<<
+	    " "<<genparticle.eta()<<" "<<genparticle.vx()<<" "<<genparticle.vy()<<" "<<
+	    rgen<<" "<<genparticle.vz()
+            <<  std::endl;
 	 nchst+=1;
        }
      }
@@ -184,41 +187,76 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
    // for each generator particle, fine the nearest track
    std::vector<int> pttrk(GenParticleHandle_->size());
+   std::vector<float> dRgt(trackHandle_->size());
+   std::vector<int> ptgen(trackHandle_->size());
+   for (int i = 0 ; i < (int)trackHandle_->size(); i++){ ptgen[i]=-1;}
+
    for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
      const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
      pttrk[j]=-1;
      float delR=99999.;
+     if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
+     if(genparticle.charge()!=0) {
      for (int i = 0 ; i < (int)trackHandle_->size(); i++){
-     const reco::Track& track = trackHandle_->at(i);
-       if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
-	 if(genparticle.charge()!=0) {
-           float delphi = (track.phi()-genparticle.phi());
-           if(delphi>3.14159) delphi=2.*3.14159-delphi;
-           float deleta = (track.eta()-genparticle.eta());
-           float DR = sqrt(pow(delphi,2)+pow(deleta,2));
-           if(DR<delR) {
-  	     delR=DR;
-  	     pttrk[j]=i;
-           }  // end dR test
-	 }  // end zero daughters
-       }  //end final state
-     } //end loop over gen particles
+       const reco::Track& track = trackHandle_->at(i);
+       float delphi = (track.phi()-genparticle.phi());
+       if(delphi>3.14159) delphi=2.*3.14159-delphi;
+       float deleta = (track.eta()-genparticle.eta());
+       float DR = sqrt(pow(delphi,2)+pow(deleta,2));
+       // try pT matching
+       DR = abs(genparticle.pt()-track.pt())/genparticle.pt();
+       // try 1/pT matching
+       //       DR = abs((1/genparticle.pt())-(1/track.pt()))/(1/genparticle.pt());
+       if(idbg>9) std::cout<<" j "<<j<<" i "<< i<<" DR "<<DR<<std::endl;
+       if(DR<delR) {
+	 if(ptgen[i]<0) {
+           delR=DR;
+  	   pttrk[j]=i;
+         } else {
+	   if(DR<dRgt[i]) {
+	     pttrk[ptgen[i]]=-1;
+	     delR=DR;
+	     pttrk[j]=i;
+	   }
+         } // end test on pointer to gen particle
+       }  // end dR test
+       }  //end loop over tracks
      if(idbg>0) std::cout<<" genparticle  "<<j<<" matches with track "<<pttrk[j]<<" with delR of "<<delR<<std::endl;
-   }
-   
+     }  // tests on gen part
+     }// tests of gen part
+
+     if(pttrk[j]>=0) {
+       ptgen[pttrk[j]]=j;
+       dRgt[pttrk[j]]=delR;
+       if(delR>0.6) {
+         ptgen[pttrk[j]]=-1;
+         pttrk[j]=-1;
+       }
+     }
+       hdR->Fill(delR);
+   } //end loop over gen particles
+      
 
 
    // Scatter plot some gen-sim quantities
    for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
-     if(idbg>0) std::cout<<" for gen particle "<<j<<" matching to track "<<pttrk[j]<<std::endl;
      const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
+     float rgen =sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2)); 
+     if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
+     if(genparticle.charge()!=0) {
+     if(idbg>0) std::cout<<" for gen particle "<<j<<" matching to track "<<pttrk[j]<<std::endl;
      if(pttrk[j]>=0) {
-     const reco::Track& track = trackHandle_->at(pttrk[j]);
-       if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
-	 if(genparticle.charge()!=0) {
-	   hgenrecopt->Fill(genparticle.pt(),track.pt());
-	 }
-       }
+       const reco::Track& track = trackHandle_->at(pttrk[j]);
+       hgenrecopt->Fill(genparticle.pt(),track.pt());
+       hgenreco->Fill(track.pt()/genparticle.pt());
+       hratvr->Fill(rgen,track.pt()/genparticle.pt());
+       if(abs(1-(track.pt()/genparticle.pt()))>0.2) {
+	 std::cout<<"danger danger will robinson bad match between gen particle "<<j<<" and track "<<pttrk[j]<<std::endl;
+       } else {
+         hrreco->Fill(rgen);
+       }	 
+     }
+     }
      }
    }
 
@@ -234,9 +272,15 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 void 
 SCETracks::beginJob()
 {
-  hntrk = fs->make<TH1F>("hntrk" , "snumber of tracks", 100, 0, 100.);
+  hntrk = fs->make<TH1F>("hntrk" , "snumber of tracks", 20, 0, 20.);
   hnchst = fs->make<TH1F>("hnchst" , "snumber of gen stable charged tracks", 20, 0, 20.);
-  hgenrecopt = fs->make<TH2D>("hgenrecopt" , "gen vs reco pt", 100, 0, 100.,100,0.,100.);
+  hrgen = fs->make<TH1F>("hrgen" , "radius for track creatin", 100, 0, 500.);
+  hrgen2 = fs->make<TH1F>("hrgen2" , "radius for track creatin", 70, 0, 70.);
+  hrreco = fs->make<TH1F>("hrreco" , "radius of dark pion for reconstructed matched tracks", 70, 0, 70.);
+  hdR = fs->make<TH1F>("hdR" , "del R between track and gen", 100, 0,10.);
+  hgenrecopt = fs->make<TH2D>("hgenrecopt" , "gen vs reco pt", 100, 0, 20.,100,0.,20.);
+  hratvr = fs->make<TH2D>("hratvr" , "reco/gen pt vs r", 100, 0, 100.,100,0.2,2.0);
+  hgenreco =   fs->make<TH1F>("hgenreco"," ratio reco to gen pt",100,0.5,1.5);
 }
 
 // ------------ method called once each job just after ending the event loop  ------------
