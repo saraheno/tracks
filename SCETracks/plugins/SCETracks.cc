@@ -88,7 +88,7 @@ class SCETracks : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
   edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
 
   edm::Service<TFileService> fs;
-  TH1F *hntrk,*hnchst,*hrgen,*hrgen2,*hrreco,*hdR,*hgenreco;
+  TH1F *hntrk,*hnchst,*hrgen,*hrgen2,*hrreco,*hdR,*hgenreco,*hptgen,*hptreco,*hnchgen,*hnchreco;
   TH2D *hgenrecopt,*hratvr;
 
 
@@ -170,8 +170,6 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      float rgen =sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2)); 
      if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
        if(genparticle.charge()!=0) {
-         hrgen->Fill(rgen);
-         hrgen2->Fill(rgen);
          if(idbg>0) std::cout << "    GenParticle " << j << " "<<genparticle.pdgId()<<" "<<genparticle.pt()<<" "<<
             genparticle.phi()<<
 	    " "<<genparticle.eta()<<" "<<genparticle.vx()<<" "<<genparticle.vy()<<" "<<
@@ -183,6 +181,24 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    }
    hnchst->Fill(nchst);
    if(idbg>0) std::cout<<" nmber of stable charged is "<<nchst<<std::endl;
+
+
+   for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
+     const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
+     float rgen =sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2)); 
+     if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
+       if(genparticle.charge()!=0) {
+         hrgen->Fill(rgen);
+         hrgen2->Fill(rgen);
+	 if(rgen<40) {
+  	   hptgen->Fill(genparticle.pt());
+	   hnchgen->Fill(nchst);
+	 }
+       }
+     }
+   }
+
+   std::cout<<"test"<<std::endl;
 
 
    // for each generator particle, fine the nearest track
@@ -250,11 +266,17 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
        hgenrecopt->Fill(genparticle.pt(),track.pt());
        hgenreco->Fill(track.pt()/genparticle.pt());
        hratvr->Fill(rgen,track.pt()/genparticle.pt());
+
+
        if(abs(1-(track.pt()/genparticle.pt()))>0.2) {
 	 std::cout<<"danger danger will robinson bad match between gen particle "<<j<<" and track "<<pttrk[j]<<std::endl;
        } else {
          hrreco->Fill(rgen);
-       }	 
+         if(rgen<40) {
+           hptreco->Fill(genparticle.pt());
+    	   hnchreco->Fill(nchst);
+         }  // within 40 cm
+       } // momentum measurement easonable	 
      }
      }
      }
@@ -275,12 +297,16 @@ SCETracks::beginJob()
   hntrk = fs->make<TH1F>("hntrk" , "snumber of tracks", 20, 0, 20.);
   hnchst = fs->make<TH1F>("hnchst" , "snumber of gen stable charged tracks", 20, 0, 20.);
   hrgen = fs->make<TH1F>("hrgen" , "radius for track creatin", 100, 0, 500.);
-  hrgen2 = fs->make<TH1F>("hrgen2" , "radius for track creatin", 70, 0, 70.);
-  hrreco = fs->make<TH1F>("hrreco" , "radius of dark pion for reconstructed matched tracks", 70, 0, 70.);
+  hrgen2 = fs->make<TH1F>("hrgen2" , "radius for track creatin", 100, 0, 100.);
+  hptgen = fs->make<TH1F>("hptgen" , "pt all", 80, 0, 40.);
+  hptreco = fs->make<TH1F>("hptreco" , "pt reconstructed", 80, 0, 40.);
+  hrreco = fs->make<TH1F>("hrreco" , "radius of dark pion for reconstructed matched tracks", 100, 0, 100.);
   hdR = fs->make<TH1F>("hdR" , "del R between track and gen", 100, 0,10.);
   hgenrecopt = fs->make<TH2D>("hgenrecopt" , "gen vs reco pt", 100, 0, 20.,100,0.,20.);
   hratvr = fs->make<TH2D>("hratvr" , "reco/gen pt vs r", 100, 0, 100.,100,0.2,2.0);
   hgenreco =   fs->make<TH1F>("hgenreco"," ratio reco to gen pt",100,0.5,1.5);
+  hnchgen =   fs->make<TH1F>("hnchgen"," number of charged tracks in decay",20,0.,20.);
+  hnchreco =   fs->make<TH1F>("hnchreco"," number of charged tracks in decay",20,0.,20.);
 }
 
 // ------------ method called once each job just after ending the event loop  ------------
