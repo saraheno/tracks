@@ -88,7 +88,7 @@ class SCETracks : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
   edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
 
   edm::Service<TFileService> fs;
-  TH1F *hntrk,*hnchst,*hrgen,*hrgen2,*hrreco,*hdR,*hgenreco,*hptgen,*hptreco,*hnchgen,*hnchreco;
+  TH1F *hntrk,*hnchst,*hrgen,*hrgen2,*hrreco,*hdR,*hgenreco,*hptgen,*hptreco,*hnchgen,*hnchreco,*hegen,*hereco,*hlgen;
   TH2D *hgenrecopt,*hratvr;
 
 
@@ -164,17 +164,23 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    Handle<reco::GenParticleCollection > GenParticleHandle_;
    iEvent.getByToken(genParticlesToken_,GenParticleHandle_);
 
+   // energy of original dark pion
+   const reco::GenParticle& DarkPion = GenParticleHandle_->at(0);
+   float DarkPionE = DarkPion.energy();
+
+
    int nchst=0; // count numbe of charged stable particles
    for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
      const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
      float rgen =sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2)); 
-     if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
-       if(genparticle.charge()!=0) {
+     float lgen = sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2)+pow(genparticle.vz(),2)) *genparticle.mass() / genparticle.energy(); 
          if(idbg>0) std::cout << "    GenParticle " << j << " "<<genparticle.pdgId()<<" "<<genparticle.pt()<<" "<<
             genparticle.phi()<<
 	    " "<<genparticle.eta()<<" "<<genparticle.vx()<<" "<<genparticle.vy()<<" "<<
-	    rgen<<" "<<genparticle.vz()
+		      rgen<<" "<<genparticle.vz()<<" "<<lgen
             <<  std::endl;
+     if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
+       if(genparticle.charge()!=0) {
 	 nchst+=1;
        }
      }
@@ -182,10 +188,14 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
    hnchst->Fill(nchst);
    if(idbg>0) std::cout<<" nmber of stable charged is "<<nchst<<std::endl;
 
+   const reco::GenParticle& genparticle = GenParticleHandle_->at(1);
+   float lgen = sqrt(pow(genparticle.vx()-DarkPion.vx(),2)+pow(genparticle.vy()-DarkPion.vy(),2)+pow(genparticle.vz()-DarkPion.vz(),2)) *DarkPion.mass() / DarkPion.energy(); 
+   hlgen->Fill(lgen);
 
    for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
      const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
      float rgen =sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2)); 
+
      if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
        if(genparticle.charge()!=0) {
          hrgen->Fill(rgen);
@@ -193,6 +203,7 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	 if(rgen<40) {
   	   hptgen->Fill(genparticle.pt());
 	   hnchgen->Fill(nchst);
+	   hegen->Fill(DarkPionE);
 	 }
        }
      }
@@ -275,6 +286,7 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
          if(rgen<40) {
            hptreco->Fill(genparticle.pt());
     	   hnchreco->Fill(nchst);
+	   hereco->Fill(DarkPionE);
          }  // within 40 cm
        } // momentum measurement easonable	 
      }
@@ -297,16 +309,19 @@ SCETracks::beginJob()
   hntrk = fs->make<TH1F>("hntrk" , "snumber of tracks", 20, 0, 20.);
   hnchst = fs->make<TH1F>("hnchst" , "snumber of gen stable charged tracks", 20, 0, 20.);
   hrgen = fs->make<TH1F>("hrgen" , "radius for track creatin", 100, 0, 500.);
+  hlgen = fs->make<TH1F>("hlgen" , "reduced length for track creatin", 100, 0, 50.);
   hrgen2 = fs->make<TH1F>("hrgen2" , "radius for track creatin", 100, 0, 100.);
-  hptgen = fs->make<TH1F>("hptgen" , "pt all", 80, 0, 40.);
-  hptreco = fs->make<TH1F>("hptreco" , "pt reconstructed", 80, 0, 40.);
+  hptgen = fs->make<TH1F>("hptgen" , "pt all", 60, 0, 15.);
+  hptreco = fs->make<TH1F>("hptreco" , "pt reconstructed", 60, 0, 15.);
   hrreco = fs->make<TH1F>("hrreco" , "radius of dark pion for reconstructed matched tracks", 100, 0, 100.);
-  hdR = fs->make<TH1F>("hdR" , "del R between track and gen", 100, 0,10.);
-  hgenrecopt = fs->make<TH2D>("hgenrecopt" , "gen vs reco pt", 100, 0, 20.,100,0.,20.);
+  hdR = fs->make<TH1F>("hdR" , "del R between track and gen", 100, 0,1.);
+  hgenrecopt = fs->make<TH2D>("hgenrecopt" , "gen vs reco pt", 100, 0, 10.,100,0.,10.);
   hratvr = fs->make<TH2D>("hratvr" , "reco/gen pt vs r", 100, 0, 100.,100,0.2,2.0);
   hgenreco =   fs->make<TH1F>("hgenreco"," ratio reco to gen pt",100,0.5,1.5);
   hnchgen =   fs->make<TH1F>("hnchgen"," number of charged tracks in decay",20,0.,20.);
   hnchreco =   fs->make<TH1F>("hnchreco"," number of charged tracks in decay",20,0.,20.);
+  hegen =   fs->make<TH1F>("hegen","energy of dark pion",30,0.,30.);
+  hereco =   fs->make<TH1F>("hereco","energy of dark pion",30,0.,30.);
 }
 
 // ------------ method called once each job just after ending the event loop  ------------
