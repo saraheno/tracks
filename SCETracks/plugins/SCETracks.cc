@@ -88,12 +88,14 @@ class SCETracks : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
   edm::EDGetTokenT<reco::GenParticleCollection> genParticlesToken_;
 
   edm::Service<TFileService> fs;
-  TH1F *hntrk,*hnchst,*hrgen,*hrgen2,*hrreco,*hdR,*hgenreco,*hptgen,*hptreco,*hnchgen,*hnchreco,*hegen,*hereco,*hlgen;
-  TH2D *hgenrecopt,*hratvr;
+  TH1F *hntrk,*hnchst,*hnchst1,*hrgen,*hrgen2,*hrreco,*hdR,*hgenreco,*hptgen,*hptreco,*hnchgen,*hnchreco,*hegen,*hereco,*hlgen,*himp;
+  TH2D *hgenrecopt,*hratvr,*hphiphi,*hphiphip,*hphiphim,*hphiphi2,*hphid1,*hphid2,*hii,*hii1,*hii2;
 
 
-  const int idbg = 10;
-
+  const int idbg = 20;
+  const float ptcut = 0.8;
+  const float radcut = 40.;
+  const float Bmag=3.8;
 };
 
 //
@@ -155,6 +157,7 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      const reco::Track& track = trackHandle_->at(j);
      if(idbg>0) std::cout << "    Track " << j << " " << track.pt() << " " << track.phi()
                << " " << track.eta() << " " << track.dxy() << " " << track.dz() <<std::endl;
+     himp->Fill(track.dxy());
    }
 
 
@@ -170,6 +173,7 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
 
    int nchst=0; // count numbe of charged stable particles
+   int nchst1=0;  // count ones with pt> 1 GeV
    for (int j = 0 ; j < (int)GenParticleHandle_->size(); j++){
      const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
      float rgen =sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2)); 
@@ -182,11 +186,16 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
        if(genparticle.charge()!=0) {
 	 nchst+=1;
+	 if(genparticle.pt()>ptcut) {
+	   nchst1+=1;
+	 }
        }
      }
    }
    hnchst->Fill(nchst);
+   hnchst1->Fill(nchst1);
    if(idbg>0) std::cout<<" nmber of stable charged is "<<nchst<<std::endl;
+   if(idbg>0) std::cout<<" nmber of stable charged pt>ptcut is is "<<nchst1<<std::endl;
 
    const reco::GenParticle& genparticle = GenParticleHandle_->at(1);
    float lgen = sqrt(pow(genparticle.vx()-DarkPion.vx(),2)+pow(genparticle.vy()-DarkPion.vy(),2)+pow(genparticle.vz()-DarkPion.vz(),2)) *DarkPion.mass() / DarkPion.energy(); 
@@ -198,12 +207,14 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
      if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
        if(genparticle.charge()!=0) {
+	 if(genparticle.pt()>ptcut) {
          hrgen->Fill(rgen);
          hrgen2->Fill(rgen);
-	 if(rgen<40) {
+	 if(rgen<radcut) {
   	   hptgen->Fill(genparticle.pt());
 	   hnchgen->Fill(nchst);
 	   hegen->Fill(DarkPionE);
+	 }
 	 }
        }
      }
@@ -223,34 +234,38 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      pttrk[j]=-1;
      float delR=99999.;
      if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
-     if(genparticle.charge()!=0) {
-     for (int i = 0 ; i < (int)trackHandle_->size(); i++){
-       const reco::Track& track = trackHandle_->at(i);
-       float delphi = (track.phi()-genparticle.phi());
-       if(delphi>3.14159) delphi=2.*3.14159-delphi;
-       float deleta = (track.eta()-genparticle.eta());
-       float DR = sqrt(pow(delphi,2)+pow(deleta,2));
+       if(genparticle.charge()!=0) {
+         if(genparticle.pt()>ptcut) {
+           for (int i = 0 ; i < (int)trackHandle_->size(); i++){
+             const reco::Track& track = trackHandle_->at(i);
+	     if(genparticle.charge()==track.charge() ) {
+             float delphi = (track.phi()-genparticle.phi());
+             if(delphi>3.14159) delphi=2.*3.14159-delphi;
+             float deleta = (track.eta()-genparticle.eta());
+             float DR = sqrt(pow(delphi,2)+pow(deleta,2));
        // try pT matching
-       DR = abs(genparticle.pt()-track.pt())/genparticle.pt();
+       DR = fabs(genparticle.pt()-track.pt())/genparticle.pt();
        // try 1/pT matching
-       //       DR = abs((1/genparticle.pt())-(1/track.pt()))/(1/genparticle.pt());
-       if(idbg>9) std::cout<<" j "<<j<<" i "<< i<<" DR "<<DR<<std::endl;
-       if(DR<delR) {
-	 if(ptgen[i]<0) {
-           delR=DR;
-  	   pttrk[j]=i;
-         } else {
-	   if(DR<dRgt[i]) {
-	     pttrk[ptgen[i]]=-1;
-	     delR=DR;
-	     pttrk[j]=i;
-	   }
-         } // end test on pointer to gen particle
-       }  // end dR test
-       }  //end loop over tracks
-     if(idbg>0) std::cout<<" genparticle  "<<j<<" matches with track "<<pttrk[j]<<" with delR of "<<delR<<std::endl;
-     }  // tests on gen part
-     }// tests of gen part
+       //       DR = fabs((1/genparticle.pt())-(1/track.pt()))/(1/genparticle.pt());
+             if(idbg>9) std::cout<<" j "<<j<<" i "<< i<<" DR "<<DR<<std::endl;
+             if(DR<delR) {
+	       if(ptgen[i]<0) {
+                 delR=DR;
+  	         pttrk[j]=i;
+               } else {
+	         if(DR<dRgt[i]) {
+	           pttrk[ptgen[i]]=-1;
+	           delR=DR;
+	           pttrk[j]=i;
+	         }
+               } // end test on pointer to gen particle
+             }  // end dR test
+	     }  // end of charge test
+           }  //end loop over tracks
+           if(idbg>0) std::cout<<" genparticle  "<<j<<" matches with track "<<pttrk[j]<<" with delR of "<<delR<<std::endl;
+         }  // tests on gen part
+       }// tests of gen part
+     } // tests on the gen part
 
      if(pttrk[j]>=0) {
        ptgen[pttrk[j]]=j;
@@ -270,27 +285,76 @@ SCETracks::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
      const reco::GenParticle& genparticle = GenParticleHandle_->at(j);
      float rgen =sqrt(pow(genparticle.vx(),2)+pow(genparticle.vy(),2)); 
      if(genparticle.numberOfDaughters()==0) {  // if a final state particle (is this really the right flag?)
-     if(genparticle.charge()!=0) {
-     if(idbg>0) std::cout<<" for gen particle "<<j<<" matching to track "<<pttrk[j]<<std::endl;
-     if(pttrk[j]>=0) {
-       const reco::Track& track = trackHandle_->at(pttrk[j]);
-       hgenrecopt->Fill(genparticle.pt(),track.pt());
-       hgenreco->Fill(track.pt()/genparticle.pt());
-       hratvr->Fill(rgen,track.pt()/genparticle.pt());
+       if(genparticle.charge()!=0) {
+	 if(genparticle.pt()>ptcut) {
+           if(idbg>0) std::cout<<" for gen particle "<<j<<" matching to track "<<pttrk[j]<<std::endl;
+           if(pttrk[j]>=0) {
+             const reco::Track& track = trackHandle_->at(pttrk[j]);
+             hgenrecopt->Fill(genparticle.pt(),track.pt());
+             hgenreco->Fill(track.pt()/genparticle.pt());
+             hratvr->Fill(rgen,track.pt()/genparticle.pt());
 
 
-       if(abs(1-(track.pt()/genparticle.pt()))>0.2) {
-	 std::cout<<"danger danger will robinson bad match between gen particle "<<j<<" and track "<<pttrk[j]<<std::endl;
-       } else {
-         hrreco->Fill(rgen);
-         if(rgen<40) {
-           hptreco->Fill(genparticle.pt());
-    	   hnchreco->Fill(nchst);
-	   hereco->Fill(DarkPionE);
-         }  // within 40 cm
-       } // momentum measurement easonable	 
-     }
-     }
+             if(fabs(1-(track.pt()/genparticle.pt()))>0.2) {
+	        std::cout<<"danger danger will robinson bad match between gen particle "<<j<<" and track "<<pttrk[j]<<std::endl;
+             } else {
+               hrreco->Fill(rgen);
+	       // compare impact parameter from generator and reconstructed vertex and phi
+	       if(idbg>8) std::cout<<" gen charge phi vx vy are "<<genparticle.charge()<<" "<<genparticle.phi()<<" "<<genparticle.vx()<<" "<<genparticle.vy()<<std::endl;
+	       if(idbg>8) std::cout<<" reco charge phi vx vy are "<<track.charge()<<" "<<track.phi()<<" "<<track.vx()<<" "<<track.vy()<<std::endl;
+	       // calculate radius of curvature in cm
+	       float Rg=100*genparticle.pt()/0.3/Bmag;
+	       float Rr=100*track.pt()/0.3/Bmag;
+	       if(idbg>8) std::cout<<" Rg and Rr are "<<Rg<<" "<<Rr<<std::endl;
+	       // calculate x and y at center of circle 
+
+	       float xcenterg = -(genparticle.vx()+genparticle.charge()*Rg*sin(genparticle.phi()));
+	       float ycenterg = -(genparticle.vy()-genparticle.charge()*Rg*cos(genparticle.phi()));
+
+	       float xcenterr = -(track.vx()+track.charge()*Rr*sin(track.phi()));
+	       float ycenterr = -(track.vy()-track.charge()*Rr*cos(track.phi()));
+
+	       if(idbg>8) std::cout<<" center gen is "<<xcenterg<<" "<<ycenterg<<" rad gen is "<<rgen<<std::endl;
+	       if(idbg>8) std::cout<<" center reco is "<<xcenterr<<" "<<ycenterr<<std::endl;
+
+	       // calculate phi at distance of closest approach
+	       float phig=0.;
+	       if(genparticle.charge()<0) {
+		 phig = atan2(xcenterg,-ycenterg);
+	       } else {
+		 phig = atan2(-xcenterg,ycenterg);
+	       }
+	       if(idbg>8) std::cout<<" phi at creation, phi at dca, phi reco are "<<genparticle.phi()<<" "<<phig<<" "<<track.phi()<<std::endl;
+	       hphiphi->Fill(phig,track.phi());
+	       hphid1->Fill(rgen,phig-track.phi());
+	       if((idbg>8)&&fabs(phig-track.phi())>2) {
+		 std::cout<<" danger danger will robinson"<<std::endl;
+	       }
+	       hphiphi2->Fill(genparticle.phi(),track.phi());
+	       hphid2->Fill(rgen,genparticle.phi()-track.phi());
+	       if(genparticle.charge()>0) hphiphip->Fill(phig,track.phi());
+	       if(genparticle.charge()<0) hphiphim->Fill(phig,track.phi());
+
+	       // calculate impact parameter
+	       float dxyg=sqrt(pow(xcenterg,2)+pow(ycenterg,2))-Rg;
+	       if(genparticle.charge()>0) dxyg=-1.*dxyg;
+	       hii->Fill(dxyg,track.dxy());
+	       hii1->Fill(rgen,track.dxy());
+	       hii2->Fill(rgen,dxyg);
+	       if(idbg>8) std::cout<<" rgen dxyg tdxy are "<<rgen<<" "<<dxyg<<" "<<track.dxy()<<std::endl;
+	       if(rgen>20) std::cout<<"danger will"<<std::endl;
+
+               if(rgen<radcut) {
+                 hptreco->Fill(genparticle.pt());
+    	         hnchreco->Fill(nchst);
+	         hereco->Fill(DarkPionE);
+               }  // within r cut cm
+
+
+             } // momentum measurement easonable	 
+           }
+         }
+       }
      }
    }
 
@@ -308,6 +372,7 @@ SCETracks::beginJob()
 {
   hntrk = fs->make<TH1F>("hntrk" , "snumber of tracks", 20, 0, 20.);
   hnchst = fs->make<TH1F>("hnchst" , "snumber of gen stable charged tracks", 20, 0, 20.);
+  hnchst1 = fs->make<TH1F>("hnchst1" , "snumber of gen stable charged tracks pt>ptcut", 20, 0, 20.);
   hrgen = fs->make<TH1F>("hrgen" , "radius for track creatin", 100, 0, 500.);
   hlgen = fs->make<TH1F>("hlgen" , "reduced length for track creatin", 100, 0, 50.);
   hrgen2 = fs->make<TH1F>("hrgen2" , "radius for track creatin", 100, 0, 100.);
@@ -322,6 +387,16 @@ SCETracks::beginJob()
   hnchreco =   fs->make<TH1F>("hnchreco"," number of charged tracks in decay",20,0.,20.);
   hegen =   fs->make<TH1F>("hegen","energy of dark pion",30,0.,30.);
   hereco =   fs->make<TH1F>("hereco","energy of dark pion",30,0.,30.);
+  hphiphi = fs->make<TH2D>("hphiphi" , "phi phi", 100, -3.2, 3.2,100,-3.2,3.2);
+  hphiphip = fs->make<TH2D>("hphiphip" , "phi phi", 100, -3.2, 3.2,100,-3.2,3.2);
+  hphiphim = fs->make<TH2D>("hphiphim" , "phi phi", 100, -3.2, 3.2,100,-3.2,3.2);
+  hphiphi2 = fs->make<TH2D>("hphiphi2" , "phi phi", 100, -3.2, 3.2,100,-3.2,3.2);
+  hphid1 = fs->make<TH2D>("hphid1" , "del phi v rgen", 100, 0.,40.,100,-1,1);
+  hphid2 = fs->make<TH2D>("hphid2" , "del phi v rgen", 100, 0.,40.,100,-1,1);
+  hii = fs->make<TH2D>("hii" , "impact parameters", 100, -20.,20.,100,-20.,20.);
+  hii1 = fs->make<TH2D>("hii1" , "impact parameter versus rgen", 100, 0.,30.,100,-20.,20.);
+  hii2 = fs->make<TH2D>("hii2" , "impact parameter versus rgen", 100, 0.,30.,100,-20.,20.);
+  himp =   fs->make<TH1F>("himp","track impact parameters",30,-30.,30.);
 }
 
 // ------------ method called once each job just after ending the event loop  ------------
